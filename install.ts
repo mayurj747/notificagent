@@ -141,7 +141,7 @@ function installWezterm(): { message: string; needsManual?: string } {
   const realLua = existsSync(luaLink) ? (realpath(luaLink) ?? luaLink) : null
 
   const manual =
-    chalk.dim("\n  Add to wezterm.lua BEFORE weztty.apply_to_config:\n") +
+    chalk.dim("\n  Add to wezterm.lua before other plugin apply_to_config calls:\n") +
     chalk.cyan("\n    local notificagent = require(\"notificagent\")\n") +
     chalk.cyan("    notificagent.apply_to_config(config)\n")
 
