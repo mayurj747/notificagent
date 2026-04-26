@@ -1,13 +1,40 @@
 #!/usr/bin/env bun
-import { checkbox, select } from "@inquirer/prompts"
-import chalk from "chalk"
-import ora from "ora"
 import { existsSync, mkdirSync, symlinkSync, unlinkSync, readFileSync, writeFileSync } from "fs"
 import { execSync, spawnSync } from "child_process"
 import { dirname, join } from "path"
 import { fileURLToPath } from "url"
 
-// ── Paths ─────────────────────────────────────────────────────────────────────
+// -- Bootstrap: ensure npm deps are available -----------------------------------
+
+const DEPS = ["@inquirer/prompts", "chalk", "ora"]
+
+async function ensureDeps() {
+  let missing = false
+  for (const dep of DEPS) {
+    try {
+      await import(dep)
+    } catch {
+      missing = true
+      break
+    }
+  }
+  if (!missing) return
+
+  console.log("Installing dependencies (one-time)…")
+  const proc = Bun.spawn(["bun", "add", "--global", ...DEPS], {
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+  await proc.exited
+}
+
+await ensureDeps()
+
+const { checkbox, select } = await import("@inquirer/prompts")
+const chalk = (await import("chalk")).default
+const ora = (await import("ora")).default
+
+// -- Paths ----------------------------------------------------------------------
 
 const REPO_ROOT = dirname(fileURLToPath(import.meta.url))
 const HOME = process.env.HOME!
@@ -19,7 +46,7 @@ const PATHS = {
   wezterm:   { config:   `${HOME}/.config/wezterm`,          lua: `${HOME}/.config/wezterm/wezterm.lua` },
 }
 
-// ── Detection ─────────────────────────────────────────────────────────────────
+// -- Detection ------------------------------------------------------------------
 
 function detect(tool: "opencode" | "claude" | "codex" | "wezterm"): boolean {
   const bin = tool === "claude" ? "claude" : tool
@@ -37,7 +64,7 @@ function detect(tool: "opencode" | "claude" | "codex" | "wezterm"): boolean {
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// -- Helpers --------------------------------------------------------------------
 
 function symlink(src: string, dst: string) {
   if (existsSync(dst)) unlinkSync(dst)
@@ -49,7 +76,7 @@ function realpath(p: string): string | null {
   catch { return null }
 }
 
-// ── Installers ────────────────────────────────────────────────────────────────
+// -- Installers -----------------------------------------------------------------
 
 function installOpencode() {
   mkdirSync(PATHS.opencode.plugins, { recursive: true })
@@ -82,7 +109,6 @@ function installCodex() {
   const hookScript = join(PATHS.codex.hooks, "notificagent.sh")
   symlink(join(REPO_ROOT, "integrations/codex/hooks/notify.sh"), hookScript)
 
-  // Enable codex_hooks feature flag
   const tomlPath = PATHS.codex.config
   if (!existsSync(tomlPath)) {
     writeFileSync(tomlPath, "[features]\ncodex_hooks = true\n")
@@ -92,7 +118,6 @@ function installCodex() {
       writeFileSync(tomlPath, toml + "\n[features]\ncodex_hooks = true\n")
   }
 
-  // Merge hooks.json
   const hooksJson = PATHS.codex.hooks_json
   const cfg: any = existsSync(hooksJson) ? JSON.parse(readFileSync(hooksJson, "utf8")) : {}
   cfg.hooks ??= {}
@@ -128,7 +153,6 @@ function installWezterm(): { message: string; needsManual?: string } {
   if (spawnSync("test", ["-w", realLua], { shell: true }).status !== 0)
     return { message: "plugin linked, wezterm.lua is read-only", needsManual: manual }
 
-  // Insert require before first wezterm.plugin.require line
   let patched = src
   const requireMatch = patched.match(/^(local\s+\w+\s*=\s*wezterm\.plugin\.require\b)/m)
   if (requireMatch?.index != null) {
@@ -143,7 +167,6 @@ function installWezterm(): { message: string; needsManual?: string } {
         patched.slice(configMatch.index)
   }
 
-  // Insert apply_to_config before first *.apply_to_config(config)
   const applyMatch = patched.match(/^(\w+\.apply_to_config\(config\))/m)
   if (applyMatch?.index != null)
     patched = patched.slice(0, applyMatch.index) +
@@ -156,7 +179,7 @@ function installWezterm(): { message: string; needsManual?: string } {
   return { message: `plugin linked, patched ${realLua}` }
 }
 
-// ── Uninstallers ──────────────────────────────────────────────────────────────
+// -- Uninstallers ---------------------------------------------------------------
 
 function uninstallOpencode() {
   const dst = join(PATHS.opencode.plugins, "notificagent.ts")
@@ -196,10 +219,9 @@ function uninstallCodex() {
 function uninstallWezterm() {
   const pluginDst = join(PATHS.wezterm.config, "notificagent.lua")
   if (existsSync(pluginDst)) unlinkSync(pluginDst)
-  // wezterm.lua patching is not auto-reverted — user removes the two lines manually
 }
 
-// ── UI ────────────────────────────────────────────────────────────────────────
+// -- UI -------------------------------------------------------------------------
 
 const TOOLS = [
   { key: "opencode",    label: "OpenCode",                    events: "session.idle · session.error · permission.updated" },
