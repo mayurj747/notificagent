@@ -1,0 +1,43 @@
+#!/bin/sh
+# notificagent - agent-invariant notification backend
+#
+# Usage: notificagent <event>
+#   event: complete | error | permission
+#
+# Plays a chime via afplay and emits a BEL character to the terminal,
+# which causes WezTerm to show a bell indicator on the tab. The indicator
+# clears automatically when the tab is focused.
+
+set -e
+
+EVENT="${1:-}"
+
+case "$EVENT" in
+  complete)
+    SOUND="/System/Library/Sounds/Glass.aiff"
+    ;;
+  error)
+    SOUND="/System/Library/Sounds/Basso.aiff"
+    ;;
+  permission)
+    SOUND="/System/Library/Sounds/Submarine.aiff"
+    ;;
+  *)
+    echo "notificagent: unknown event '${EVENT}'. Use: complete | error | permission" >&2
+    exit 1
+    ;;
+esac
+
+# Play chime in background so we don't block the calling hook
+afplay "$SOUND" &
+
+# Emit BEL character to trigger WezTerm tab indicator.
+# Try /dev/tty first (works when the script runs attached to a terminal).
+# Fall back to wezterm cli if WEZTERM_PANE is set (works from background processes).
+# Both paths are best-effort — failures are suppressed so a missing tty never
+# prevents the chime from playing.
+if [ -w /dev/tty ]; then
+  { printf '\007' > /dev/tty; } 2>/dev/null || true
+elif [ -n "${WEZTERM_PANE:-}" ] && command -v wezterm > /dev/null 2>&1; then
+  printf '\007' | wezterm cli send-text --pane-id "$WEZTERM_PANE" --no-paste 2>/dev/null || true
+fi
