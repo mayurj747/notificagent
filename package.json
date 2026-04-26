@@ -1,0 +1,11 @@
+{
+  "name": "notificagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "chalk": "^5.0.0",
+    "ora": "^8.0.0"
+  }
+}

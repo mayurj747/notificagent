@@ -3,36 +3,9 @@ import { existsSync, mkdirSync, symlinkSync, unlinkSync, readFileSync, writeFile
 import { execSync, spawnSync } from "child_process"
 import { dirname, join } from "path"
 import { fileURLToPath } from "url"
-
-// -- Bootstrap: ensure npm deps are available -----------------------------------
-
-const DEPS = ["@inquirer/prompts", "chalk", "ora"]
-
-async function ensureDeps() {
-  let missing = false
-  for (const dep of DEPS) {
-    try {
-      await import(dep)
-    } catch {
-      missing = true
-      break
-    }
-  }
-  if (!missing) return
-
-  console.log("Installing dependencies (one-time)…")
-  const proc = Bun.spawn(["bun", "add", "--global", ...DEPS], {
-    stdout: "inherit",
-    stderr: "inherit",
-  })
-  await proc.exited
-}
-
-await ensureDeps()
-
-const { checkbox, select } = await import("@inquirer/prompts")
-const chalk = (await import("chalk")).default
-const ora = (await import("ora")).default
+import { checkbox, select } from "@inquirer/prompts"
+import chalk from "chalk"
+import ora from "ora"
 
 // -- Paths ----------------------------------------------------------------------
 
